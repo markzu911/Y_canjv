@@ -1,0 +1,6 @@
+{
+  "name": "AI餐具商品图",
+  "description": "One-click generation of tableware e-commerce images with custom backgrounds.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
