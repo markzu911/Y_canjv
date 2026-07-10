@@ -693,19 +693,6 @@ export default function App() {
                           </div>
                         )}
 
-                        {/* Interactive Dynamic Upload Zone Component (conditional on style selection) */}
-                        {hasSelectedStyle && isModel && !uploadedImage && (
-                          <div 
-                            onClick={() => fileInputRef.current?.click()}
-                            className="bg-white border-2 border-dashed border-[#D9C4A9] hover:border-[#4A3B32] hover:bg-[#FDFBF7] rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 shadow-sm flex flex-col items-center justify-center gap-2 group max-w-sm mt-2"
-                          >
-                            <div className="w-10 h-10 bg-[#FDF8EE] rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                              <Upload className="w-5 h-5 text-[#D4A373]" />
-                            </div>
-                            <span className="text-xs font-bold text-[#4A3B32]">点击在此处上传餐具原图</span>
-                            <span className="text-[10px] text-[#888]">支持 JPG / PNG / WEBP 格式图片</span>
-                          </div>
-                        )}
 
                         {/* User Image Upload Preview Component */}
                         {!isModel && msg.text.includes('[已上传原图]') && uploadedImage && (
@@ -842,9 +829,9 @@ export default function App() {
                   <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#EBDDC9] text-[#4A3B32] text-xs">1</span> 
                   产品图片
                 </h2>
-                <div 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border border-dashed border-[#D9C4A9] bg-[#FDFBF7] rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-[#FDF8EE] transition-all duration-200 relative overflow-hidden group min-h-[110px]"
+                <label 
+                  htmlFor="expert-image-upload"
+                  className="border border-dashed border-[#D9C4A9] bg-[#FDFBF7] rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-[#FDF8EE] transition-all duration-200 relative group min-h-[110px]"
                 >
                   {uploadedImage ? (
                     <>
@@ -866,12 +853,13 @@ export default function App() {
                   )}
                   <input 
                     type="file" 
+                    id="expert-image-upload"
                     ref={fileInputRef} 
                     onChange={handleImageUpload} 
                     accept="image/*" 
                     className="hidden" 
                   />
-                </div>
+                </label>
               </section>
 
               <section className="bg-white p-4 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-[#EBE6E0] shrink-0">
