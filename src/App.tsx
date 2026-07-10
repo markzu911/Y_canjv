@@ -329,7 +329,7 @@ export default function App() {
             {
               id: `no-img-${Date.now()}`,
               role: 'model',
-              text: '⚠️ 请先上传餐具原图。您可以使用下方聊天工具栏的图片按钮进行上传哦！'
+              text: '⚠️ 请先上传餐具原图。您可以使用对话窗口中的卡片直接上传哦！'
             }
           ]);
           return;
@@ -614,9 +614,7 @@ export default function App() {
             </div>
           </div>
         ) : mode === 'agent' ? (
-          <div className="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 h-full max-w-6xl mx-auto w-full overflow-hidden">
-            {/* Left Panel: Chat Interface */}
-            <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-[#EBE6E0] overflow-hidden h-full">
+          <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-[#EBE6E0] overflow-hidden h-full max-w-4xl mx-auto w-full">
               {/* Chat header */}
               <div className="px-6 py-3.5 border-b border-[#EBE6E0] bg-[#FAF8F5]/80 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -672,23 +670,67 @@ export default function App() {
 
                         {/* Interactive Style Picker Component */}
                         {isModel && msg.component === 'style_picker' && (
-                          <div className="bg-white/50 border border-[#F0EBE4] rounded-2xl p-3.5 space-y-3 shadow-sm">
-                            <p className="text-[10px] font-bold text-[#8A7969] uppercase tracking-wider">直接点击选择喜欢的场景风格：</p>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                              {STYLES.map(style => (
-                                <button
-                                  key={style.id}
-                                  onClick={() => handleStyleSelectInChat(style.id)}
-                                  className={`p-2.5 rounded-xl border text-left transition-all hover:bg-[#FDF8EE]/50 ${
-                                    selectedStyleId === style.id
-                                      ? 'border-[#D9C4A9] bg-[#FDF8EE] text-[#4A3B32]'
-                                      : 'border-[#EBE6E0] bg-white text-[#665B54]'
-                                  }`}
-                                >
-                                  <p className="text-[11px] font-bold truncate">{style.name}</p>
-                                  <p className="text-[9px] text-[#999] truncate mt-0.5">{style.desc}</p>
-                                </button>
-                              ))}
+                          <div className="space-y-3">
+                            <div className="bg-white/50 border border-[#F0EBE4] rounded-2xl p-3.5 space-y-3 shadow-sm">
+                              <p className="text-[10px] font-bold text-[#8A7969] uppercase tracking-wider">直接点击选择喜欢的场景风格：</p>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {STYLES.map(style => (
+                                  <button
+                                    key={style.id}
+                                    onClick={() => handleStyleSelectInChat(style.id)}
+                                    className={`p-2.5 rounded-xl border text-left transition-all hover:bg-[#FDF8EE]/50 ${
+                                      selectedStyleId === style.id
+                                        ? 'border-[#D9C4A9] bg-[#FDF8EE] text-[#4A3B32]'
+                                        : 'border-[#EBE6E0] bg-white text-[#665B54]'
+                                    }`}
+                                  >
+                                    <p className="text-[11px] font-bold truncate">{style.name}</p>
+                                    <p className="text-[9px] text-[#999] truncate mt-0.5">{style.desc}</p>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {!uploadedImage && (
+                              <div 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="bg-white border-2 border-dashed border-[#D9C4A9] hover:border-[#4A3B32] hover:bg-[#FDFBF7] rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 shadow-sm flex flex-col items-center justify-center gap-2 group max-w-sm"
+                              >
+                                <div className="w-10 h-10 bg-[#FDF8EE] rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                                  <Upload className="w-5 h-5 text-[#D4A373]" />
+                                </div>
+                                <span className="text-xs font-bold text-[#4A3B32]">直接在此处上传餐具产品原图</span>
+                                <span className="text-[10px] text-[#888]">支持 JPG / PNG / WEBP 格式餐具图片</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Interactive Dynamic Upload Zone Component */}
+                        {isModel && msg.component !== 'style_picker' && (msg.component === 'upload_zone' || msg.text.includes('上传') || msg.text.includes('原图')) && !uploadedImage && (
+                          <div 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="bg-white border-2 border-dashed border-[#D9C4A9] hover:border-[#4A3B32] hover:bg-[#FDFBF7] rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 shadow-sm flex flex-col items-center justify-center gap-2 group max-w-sm mt-2"
+                          >
+                            <div className="w-10 h-10 bg-[#FDF8EE] rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                              <Upload className="w-5 h-5 text-[#D4A373]" />
+                            </div>
+                            <span className="text-xs font-bold text-[#4A3B32]">点击在此处上传餐具原图</span>
+                            <span className="text-[10px] text-[#888]">支持 JPG / PNG / WEBP 格式图片</span>
+                          </div>
+                        )}
+
+                        {/* User Image Upload Preview Component */}
+                        {!isModel && msg.text.includes('[已上传原图]') && uploadedImage && (
+                          <div className="mt-2 rounded-xl overflow-hidden border border-[#EBE6E0] max-w-xs shadow-sm bg-white p-2 inline-block group relative">
+                            <img src={uploadedImage} alt="Uploaded tableware preview" className="max-h-40 object-contain rounded-lg" />
+                            <div 
+                              onClick={() => fileInputRef.current?.click()}
+                              className="absolute inset-0 bg-[#4A3B32]/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200 cursor-pointer rounded-xl"
+                            >
+                              <span className="bg-white text-[#4A3B32] px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md">
+                                <RefreshCw className="w-3.5 h-3.5" /> 重新上传
+                              </span>
                             </div>
                           </div>
                         )}
@@ -754,14 +796,6 @@ export default function App() {
               <div className="p-4 border-t border-[#EBE6E0] bg-white space-y-2">
                 {/* Quick Suggestions / Actions */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full custom-scrollbar">
-                  {!uploadedImage && (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-[10px] font-bold shrink-0 bg-[#FDF8EE] border border-[#D9C4A9] text-[#D4A373] px-2.5 py-1 rounded-full hover:bg-[#FDF5E6] transition-colors flex items-center gap-1"
-                    >
-                      <Upload className="w-3 h-3" /> 点击上传餐具原图
-                    </button>
-                  )}
                   {uploadedImage && (
                     <>
                       <button
@@ -794,125 +828,24 @@ export default function App() {
 
                 {/* Input box */}
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-3 bg-[#F5F2EC] hover:bg-[#EAE4D9] text-[#4A3B32] rounded-xl transition-colors flex items-center justify-center shrink-0"
-                    title="上传图片"
-                  >
-                    <ImageIcon className="w-5 h-5" />
-                  </button>
                   <input
                     type="text"
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
                     placeholder="和 AI 艺术家说说你的需求（例如：“把背景换成暖阳餐桌并加几朵白菊花”）"
-                    className="flex-1 text-xs px-4 rounded-xl bg-[#FDF8EE]/40 border border-[#EBE6E0] text-[#4A3B32] placeholder-[#A49A90] focus:outline-none focus:border-[#D9C4A9] focus:ring-1 focus:ring-[#D9C4A9]"
+                    className="flex-1 text-xs px-4 py-3 rounded-xl bg-[#FDF8EE]/40 border border-[#EBE6E0] text-[#4A3B32] placeholder-[#A49A90] focus:outline-none focus:border-[#D9C4A9] focus:ring-1 focus:ring-[#D9C4A9]"
                   />
                   <button
                     onClick={() => handleSendChatMessage()}
                     disabled={!inputMessage.trim()}
-                    className="p-3 bg-[#4A3B32] hover:bg-[#3B3029] disabled:bg-[#A49A90] disabled:cursor-not-allowed text-white rounded-xl transition-all shadow-sm shrink-0 flex items-center justify-center"
+                    className="p-3 bg-[#4A3B32] hover:bg-[#3B3029] disabled:bg-[#A49A90] disabled:cursor-not-allowed text-white rounded-xl transition-all shadow-sm shrink-0 flex items-center justify-center w-12 h-12"
                   >
                     <Send className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             </div>
-
-            {/* Right Panel: Live Config & Render Result */}
-            <div className="w-full lg:w-[280px] xl:w-[320px] shrink-0 bg-white rounded-2xl border border-[#EBE6E0] overflow-hidden flex flex-col h-full shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-              <div className="p-4 border-b border-[#EBE6E0] bg-[#FAF8F5] shrink-0">
-                <h3 className="text-xs font-bold text-[#4A3B32] flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#D4A373]" />
-                  实时同步配置 & 最新成果
-                </h3>
-              </div>
-              <div className="p-4 flex-1 overflow-y-auto space-y-4 custom-scrollbar">
-                {/* Active Product Image */}
-                <div>
-                  <span className="text-[10px] font-bold text-[#A49A90] uppercase tracking-wider block mb-1.5">餐具原图</span>
-                  <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border border-[#EBE6E0] rounded-xl aspect-square overflow-hidden bg-[#FAF8F5] relative group cursor-pointer flex items-center justify-center p-2"
-                  >
-                    {uploadedImage ? (
-                      <>
-                        <img src={uploadedImage} alt="Original" className="max-w-full max-h-full object-contain" />
-                        <div className="absolute inset-0 bg-[#4A3B32]/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
-                          <span className="text-[10px] font-bold text-white bg-black/40 px-2 py-1 rounded-full flex items-center gap-1">
-                            <RefreshCw className="w-2.5 h-2.5" /> 更换原图
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-center p-3">
-                        <Upload className="w-6 h-6 text-[#A49A90] mx-auto mb-1" />
-                        <p className="text-[10px] text-[#A49A90]">待上传原图</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Sync Parameters */}
-                <div className="space-y-2 bg-[#FCFBF9] p-3 rounded-xl border border-[#F0EBE4]">
-                  <span className="text-[10px] font-bold text-[#A49A90] uppercase tracking-wider block">实时参数列表</span>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div>
-                      <p className="text-[#999] text-[9px]">背景风格</p>
-                      <p className="font-bold text-[#4A3B32] truncate">
-                        {STYLES.find(s => s.id === selectedStyleId)?.name || '未选'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[#999] text-[9px]">长宽比例</p>
-                      <p className="font-bold text-[#4A3B32]">{aspectRatio}</p>
-                    </div>
-                    <div>
-                      <p className="text-[#999] text-[9px]">输出分辨率</p>
-                      <p className="font-bold text-[#4A3B32] uppercase">{resolution}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-[#999] text-[9px]">自定义需求</p>
-                      <p className="font-bold text-[#4A3B32] line-clamp-1">{customPrompt || '无'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Latest Render */}
-                <div>
-                  <span className="text-[10px] font-bold text-[#A49A90] uppercase tracking-wider block mb-1.5">渲染成果预览</span>
-                  <div className="border border-[#EBE6E0] rounded-xl aspect-square overflow-hidden bg-[#FAF8F5] relative group flex items-center justify-center p-2">
-                    {generatedImage ? (
-                      <>
-                        <img src={generatedImage} alt="Latest Render" className="max-w-full max-h-full object-contain" />
-                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => setZoomPreview(generatedImage)}
-                            className="p-1.5 bg-white text-[#4A3B32] rounded-full shadow hover:bg-slate-50"
-                          >
-                            <Maximize2 className="w-3 h-3" />
-                          </button>
-                          <a 
-                            href={generatedImage} 
-                            download="latest-render.png"
-                            className="p-1.5 bg-[#4A3B32] text-white rounded-full shadow hover:bg-[#3B3029]"
-                          >
-                            <Download className="w-3 h-3" />
-                          </a>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-center p-4">
-                        <ImageIcon className="w-6 h-6 text-[#A49A90] mx-auto mb-1" />
-                        <p className="text-[10px] text-[#A49A90]">等待渲染完成后展现</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         ) : (
           <>
             {/* Left Column: Settings */}
