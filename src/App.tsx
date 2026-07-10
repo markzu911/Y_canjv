@@ -694,6 +694,29 @@ export default function App() {
                         )}
 
 
+                        {/* Interactive Dynamic Upload Zone Component (conditional on style selection) */}
+                        {hasSelectedStyle && isModel && !uploadedImage && (
+                          <div 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="bg-white border-2 border-dashed border-[#D9C4A9] hover:border-[#4A3B32] hover:bg-[#FDFBF7] rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 shadow-sm flex flex-col items-center justify-center gap-2 group max-w-sm mt-2"
+                          >
+                            <div className="w-10 h-10 bg-[#FDF8EE] rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                              <Upload className="w-5 h-5 text-[#D4A373]" />
+                            </div>
+                            <span className="text-xs font-bold text-[#4A3B32]">点击在此处上传餐具原图</span>
+                            <span className="text-[10px] text-[#888]">支持 JPG / PNG / WEBP 格式图片</span>
+                          </div>
+                        )}
+
+                        {/* Hidden file input for Agent Mode */}
+                        <input 
+                          type="file" 
+                          ref={fileInputRef} 
+                          onChange={handleImageUpload} 
+                          accept="image/*" 
+                          className="hidden" 
+                        />
+
                         {/* User Image Upload Preview Component */}
                         {!isModel && msg.text.includes('[已上传原图]') && uploadedImage && (
                           <div className="mt-2 rounded-xl overflow-hidden border border-[#EBE6E0] max-w-xs shadow-sm bg-white p-2 inline-block group relative">
