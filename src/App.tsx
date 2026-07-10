@@ -694,7 +694,7 @@ export default function App() {
                         )}
 
                         {/* Interactive Dynamic Upload Zone Component (conditional on style selection) */}
-                        {hasSelectedStyle && isModel && (msg.component === 'upload_zone' || msg.text.includes('上传') || msg.text.includes('原图')) && !uploadedImage && (
+                        {hasSelectedStyle && isModel && !uploadedImage && (
                           <div 
                             onClick={() => fileInputRef.current?.click()}
                             className="bg-white border-2 border-dashed border-[#D9C4A9] hover:border-[#4A3B32] hover:bg-[#FDFBF7] rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 shadow-sm flex flex-col items-center justify-center gap-2 group max-w-sm mt-2"
