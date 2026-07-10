@@ -645,13 +645,17 @@ export default function App() {
                 ref={chatScrollRef}
                 className="flex-1 p-6 overflow-y-auto space-y-6 bg-[#FCFBF9] custom-scrollbar"
               >
-                {messages.map((msg) => {
-                  const isModel = msg.role === 'model';
-                  return (
-                    <div 
-                      key={msg.id}
-                      className={`flex gap-3 max-w-[85%] ${isModel ? 'mr-auto' : 'ml-auto flex-row-reverse max-w-[60%]'}`}
-                    >
+                {(() => {
+                  const lastModelMessage = [...messages].reverse().find(m => m.role === 'model');
+                  const lastModelMessageId = lastModelMessage ? lastModelMessage.id : null;
+                  return messages.map((msg) => {
+                    const isModel = msg.role === 'model';
+                    const isLatestModel = msg.id === lastModelMessageId;
+                    return (
+                      <div 
+                        key={msg.id}
+                        className={`flex gap-3 max-w-[85%] ${isModel ? 'mr-auto' : 'ml-auto flex-row-reverse max-w-[60%]'}`}
+                      >
                       <div className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-xs font-bold shadow-sm ${
                         isModel ? 'bg-[#EBDDC9] text-[#4A3B32]' : 'bg-[#4A3B32] text-white'
                       }`}>
@@ -694,8 +698,8 @@ export default function App() {
                         )}
 
 
-                        {/* Interactive Dynamic Upload Zone Component (conditional on style selection) */}
-                        {hasSelectedStyle && isModel && !uploadedImage && (
+                        {/* Interactive Dynamic Upload Zone Component (conditional on style selection and being the latest model message, excluding style_picker/welcome message) */}
+                        {hasSelectedStyle && isModel && isLatestModel && msg.id !== 'welcome' && msg.component !== 'style_picker' && !uploadedImage && (
                           <div 
                             onClick={() => fileInputRef.current?.click()}
                             className="bg-white border-2 border-dashed border-[#D9C4A9] hover:border-[#4A3B32] hover:bg-[#FDFBF7] rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 shadow-sm flex flex-col items-center justify-center gap-2 group max-w-sm mt-2"
@@ -707,15 +711,6 @@ export default function App() {
                             <span className="text-[10px] text-[#888]">支持 JPG / PNG / WEBP 格式图片</span>
                           </div>
                         )}
-
-                        {/* Hidden file input for Agent Mode */}
-                        <input 
-                          type="file" 
-                          ref={fileInputRef} 
-                          onChange={handleImageUpload} 
-                          accept="image/*" 
-                          className="hidden" 
-                        />
 
                         {/* User Image Upload Preview Component */}
                         {!isModel && msg.text.includes('[已上传原图]') && uploadedImage && (
@@ -773,21 +768,31 @@ export default function App() {
                       </div>
                     </div>
                   );
-                })}
+                });
+              })()}
 
-                {isAgentTyping && (
-                  <div className="flex gap-3 max-w-[80%]">
-                    <div className="w-8 h-8 rounded-xl bg-[#EBDDC9] text-[#4A3B32] flex items-center justify-center text-xs font-bold shadow-sm">
-                      <Bot className="w-4 h-4" />
-                    </div>
-                    <div className="bg-white border border-[#F0EBE4] rounded-2xl px-4 py-3 text-xs text-gray-400 flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-[#D4A373] animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                      <span className="w-2 h-2 rounded-full bg-[#D4A373] animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                      <span className="w-2 h-2 rounded-full bg-[#D4A373] animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                    </div>
+              {/* Single top-level file input for Agent Mode */}
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleImageUpload} 
+                accept="image/*" 
+                className="hidden" 
+              />
+
+              {isAgentTyping && (
+                <div className="flex gap-3 max-w-[80%]">
+                  <div className="w-8 h-8 rounded-xl bg-[#EBDDC9] text-[#4A3B32] flex items-center justify-center text-xs font-bold shadow-sm">
+                    <Bot className="w-4 h-4" />
                   </div>
-                )}
-              </div>
+                  <div className="bg-white border border-[#F0EBE4] rounded-2xl px-4 py-3 text-xs text-gray-400 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#D4A373] animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-2 h-2 rounded-full bg-[#D4A373] animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                    <span className="w-2 h-2 rounded-full bg-[#D4A373] animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  </div>
+                </div>
+              )}
+            </div>
 
               {/* Chat bottom input */}
               <div className="p-4 border-t border-[#EBE6E0] bg-white space-y-2">
