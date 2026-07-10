@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Upload, Image as ImageIcon, Loader2, Download, Maximize2, X, RefreshCw, Sparkles, Coffee, Gem, ChefHat, TreePine, Utensils, Gift, Lightbulb, CheckCircle2, Layout, Zap, Lock, User } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, Image as ImageIcon, Loader2, Download, Maximize2, X, RefreshCw, Sparkles, Coffee, Gem, ChefHat, TreePine, Utensils, Gift, Lightbulb, CheckCircle2, Layout, Zap, Lock, User, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const STYLES = [
@@ -28,6 +28,50 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [zoomPreview, setZoomPreview] = useState<string | null>(null);
 
+  const [integral, setIntegral] = useState<number | null>(null);
+  const [userId, setUserId] = useState<string>('test_user');
+  const [toolId, setToolId] = useState<string>('test_tool');
+  const [saasUrls, setSaasUrls] = useState<{verifyUrl?: string, consumeUrl?: string, uploadTokenUrl?: string, uploadCommitUrl?: string}>({});
+
+  useEffect(() => {
+    const fetchIntegral = async (uid: string, tid: string) => {
+      try {
+        const res = await fetch('/api/tool/launch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: uid, toolId: tid })
+        });
+        const data = await res.json();
+        if (data.success && data.data?.user) {
+          setIntegral(data.data.user.integral);
+        }
+      } catch (err) {
+        console.error('Fetch integral failed', err);
+      }
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'SAAS_INIT') {
+        setUserId(event.data.userId);
+        setToolId(event.data.toolId);
+        setSaasUrls({
+          verifyUrl: event.data.verifyUrl,
+          consumeUrl: event.data.consumeUrl,
+          uploadTokenUrl: event.data.uploadTokenUrl,
+          uploadCommitUrl: event.data.uploadCommitUrl
+        });
+        fetchIntegral(event.data.userId, event.data.toolId);
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    
+    // Initial fetch for local development
+    fetchIntegral(userId, toolId);
+
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,6 +89,22 @@ export default function App() {
 
   const handleGenerate = async () => {
     if (!uploadedImage) return;
+
+    try {
+      const verifyRes = await fetch('/api/tool/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, toolId })
+      });
+      const verifyData = await verifyRes.json();
+      if (!verifyData.success) {
+        setError(verifyData.message || '余额不足拒绝生图');
+        return;
+      }
+    } catch (err) {
+      setError('检查积分失败');
+      return;
+    }
     
     setIsGenerating(true);
     setError(null);
@@ -75,6 +135,59 @@ export default function App() {
       }
 
       setGeneratedImage(data.imageUrl);
+
+      try {
+        const consumeRes = await fetch('/api/tool/consume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, toolId })
+        });
+        const consumeData = await consumeRes.json();
+        if (consumeData.success && consumeData.data?.currentIntegral !== undefined) {
+          setIntegral(consumeData.data.currentIntegral);
+        }
+
+        if (data.imageUrl) {
+          const imgRes = await fetch(data.imageUrl);
+          const blob = await imgRes.blob();
+          
+          const tokenRes = await fetch('/api/upload/direct-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId,
+              toolId,
+              source: 'result',
+              fileName: `generated-${Date.now()}.png`,
+              mimeType: blob.type || 'image/png',
+              fileSize: blob.size
+            })
+          });
+          const tokenData = await tokenRes.json();
+          if (tokenData.success) {
+            await fetch(tokenData.uploadUrl || tokenData.ossUploadUrl, {
+              method: tokenData.method || 'PUT',
+              headers: tokenData.headers,
+              body: blob
+            });
+
+            await fetch('/api/upload/commit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId,
+                toolId,
+                source: 'result',
+                objectKey: tokenData.objectKey,
+                fileSize: blob.size
+              })
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Consume or upload failed', err);
+      }
+
     } catch (err: any) {
       const errorMsg = err.message || '';
       if (errorMsg.includes('prepayment credits are depleted') || errorMsg.includes('429')) {
@@ -100,11 +213,17 @@ export default function App() {
               <p className="text-xs text-[#888] mt-0.5">上传餐具图片，选择喜欢的背景风格，AI 为您生成高质感的商品场景图</p>
             </div>
           </div>
-          <div className="hidden lg:flex items-center gap-3 bg-[#FDF8EE] border border-[#EBE6E0] px-4 py-2 rounded-xl">
-            <Lightbulb className="w-4 h-4 text-[#D4A373]" />
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-[#4A3B32]">小贴士</span>
-              <span className="text-[10px] text-[#888]">选择合适的背景和光线，能让餐具更出彩哦~</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-[#EBE6E0]">
+              <Coins className="w-4 h-4 text-[#D4A373]" />
+              <span className="text-sm font-bold text-[#4A3B32]">积分: {integral !== null ? integral : '--'}</span>
+            </div>
+            <div className="hidden lg:flex items-center gap-3 bg-[#FDF8EE] border border-[#EBE6E0] px-4 py-2 rounded-xl">
+              <Lightbulb className="w-4 h-4 text-[#D4A373]" />
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-[#4A3B32]">小贴士</span>
+                <span className="text-[10px] text-[#888]">选择合适的背景和光线，能让餐具更出彩哦~</span>
+              </div>
             </div>
           </div>
         </div>

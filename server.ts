@@ -97,6 +97,52 @@ Shoot from an angled/oblique perspective. The new background must look highly pr
     }
   });
 
+  app.post("/api/tool/launch", (req, res) => {
+    res.json({
+      success: true,
+      data: {
+        user: { name: "Test User", integral: 100 },
+        tool: { name: "Image Gen", integral: 10 }
+      }
+    });
+  });
+
+  app.post("/api/tool/verify", (req, res) => {
+    res.json({
+      success: true,
+      data: { currentIntegral: 100, requiredIntegral: 10 }
+    });
+  });
+
+  app.post("/api/tool/consume", (req, res) => {
+    res.json({
+      success: true,
+      data: { currentIntegral: 90, consumedIntegral: 10 }
+    });
+  });
+
+  app.post("/api/upload/direct-token", (req, res) => {
+    res.json({
+      success: true,
+      method: "PUT",
+      uploadUrl: "/api/upload/proxy-put",
+      objectKey: `result/test_${Date.now()}.png`,
+      headers: { "Content-Type": req.body.mimeType || 'image/png' }
+    });
+  });
+
+  app.put("/api/upload/proxy-put", (req, res) => {
+    res.status(200).send();
+  });
+
+  app.post("/api/upload/commit", (req, res) => {
+    res.json({
+      success: true,
+      savedToRecords: true,
+      recordId: "img_test"
+    });
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
