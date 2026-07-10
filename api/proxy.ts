@@ -1,6 +1,6 @@
 import express from "express";
 import axios from "axios";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
@@ -30,7 +30,11 @@ const proxyRequest = async (req: any, res: any, targetPath: string) => {
     res.status(response.status).json(response.data);
   } catch (error: any) {
     console.error("Proxy error:", error.message);
-    res.status(500).json({ error: "代理转发失败" });
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(500).json({ error: "代理转发失败", details: error.message });
+    }
   }
 };
 
@@ -125,6 +129,89 @@ Shoot from an angled/oblique perspective. The new background must look highly pr
   } catch (error: any) {
     console.error("Generation error:", error);
     res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
+app.post("/api/agent/chat", async (req, res) => {
+  try {
+    const { messages, currentParams, hasImage } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: "API Key 未配置" });
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    const systemInstruction = `You are an expert tableware product photography and scene setup AI assistant.
+Your goal is to converse with the user and help them design the perfect product scene.
+You are extremely smart, friendly, and you truly understand the user's intent.
+
+The available parameter values are:
+Styles:
+- elegant_blue: 清雅雅致 (clean white surface with a light blue placemat, light blue vase)
+- rustic: 复古厨房 (rustic kitchen with wooden textures and warm natural lighting)
+- elegant_marble: 优雅大理石 (elegant warm beige marble round table, sheer curtains with dappled sunlight)
+- cozy: 温馨早餐 (cozy breakfast setting with bright morning light and soft linen textures)
+- forest: 森林时光 (outdoor forest setting, rustic wooden table with pine cones)
+- sunny_home: 暖阳餐桌 (warm sunny dining setting with blurred background cabinet)
+- spring_bamboo: 春日竹影 (light green background with bamboo leaf shadows, fresh feel)
+- vintage_floral: 复古法式 (brown tablecloth, classic painting background, candles, roses)
+
+Aspect Ratios (比例): "1:1", "3:4", "4:3", "9:16", "16:9"
+Resolutions (清晰度): "1k", "2k", "4k"
+
+Current system state parameters before user's message:
+- selectedStyleId: "${currentParams?.selectedStyleId || 'elegant_blue'}"
+- aspectRatio: "${currentParams?.aspectRatio || '1:1'}"
+- resolution: "${currentParams?.resolution || '1k'}"
+- customPrompt: "${currentParams?.customPrompt || ''}"
+- original image uploaded: ${hasImage ? "Yes" : "No"}
+
+Rules for updating params:
+1. ONLY update parameters that the user explicitly wants to change, either by naming them directly (e.g. "把背景换成暖阳餐桌", "比例改成16:9", "超清") or by describing an addition/modification. Do not reset or change other parameters if the user hasn't asked.
+2. If the user specifies any addition or details (e.g. "加几朵白色的雏菊", "加一些高端的金色刀叉"), write/append this into the "customPrompt" field. Keep existing customPrompt elements if they are still relevant, or refine it nicely.
+3. Decide if we should trigger image generation ("triggerGenerate"):
+   - Set "triggerGenerate" to true ONLY if they have already uploaded an original image (hasImage is true) AND they either ask to generate (e.g. "开始生成", "生图吧", "渲染一下") OR they just changed a key parameter (like style, aspectRatio, customPrompt) making it natural to immediately trigger a regeneration to show the result.
+   - If hasImage is false, always set "triggerGenerate" to false, and in your reply kindly remind them that they need to upload an image first so we can generate!
+
+You must output a valid JSON conforming exactly to the response schema. Keep the 'reply' friendly, concise, natural, and entirely in professional, helpful Chinese. Don't be dry.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: JSON.stringify(messages),
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            reply: {
+              type: Type.STRING,
+              description: "A friendly and concise conversational reply in Chinese explaining what was updated, or guiding them."
+            },
+            updatedParams: {
+              type: Type.OBJECT,
+              properties: {
+                selectedStyleId: { type: Type.STRING },
+                aspectRatio: { type: Type.STRING },
+                resolution: { type: Type.STRING },
+                customPrompt: { type: Type.STRING }
+              }
+            },
+            triggerGenerate: {
+              type: Type.BOOLEAN,
+              description: "Whether we should trigger image generation now."
+            }
+          },
+          required: ["reply", "triggerGenerate"]
+        }
+      }
+    });
+
+    res.json(JSON.parse(response.text));
+  } catch (error: any) {
+    console.error("Agent chat error:", error);
+    res.status(500).json({ error: "Failed to process agent message" });
   }
 });
 
