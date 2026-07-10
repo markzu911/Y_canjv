@@ -117,23 +117,21 @@ export default function App() {
 
     if (mode === 'agent') {
       const userMsgId = `upload-${Date.now()}`;
+      const agentMsgId = `agent-await-params-${Date.now()}`;
       setMessages(prev => [
         ...prev,
         {
           id: userMsgId,
           role: 'user',
           text: '📸 [已上传原图] 成功导入了餐具产品图片。'
+        },
+        {
+          id: agentMsgId,
+          role: 'model',
+          text: '餐具产品原图已接收！在开始生成专属场景大片之前，请确认您想要的画面比例与清晰度参数：',
+          component: 'param_selector'
         }
       ]);
-      triggerAgentResponse([
-        ...messages,
-        { role: 'user', text: '📸 [已上传原图] 成功导入了餐具产品图片。' }
-      ], {
-        selectedStyleId,
-        aspectRatio,
-        resolution,
-        customPrompt
-      }, base64);
     }
   };
 
@@ -313,12 +311,23 @@ export default function App() {
 
       // 2. Reply message
       const agentMsgId = `agent-${Date.now()}`;
+      const hasImage = !!activeImage;
+      const styleSelected = !!(data.updatedParams?.selectedStyleId || selectedStyleId);
+
+      let componentToUse: 'style_picker' | 'upload_zone' | 'param_selector' | 'result_card' | undefined = undefined;
+      if (!hasImage && styleSelected) {
+        componentToUse = 'upload_zone';
+      } else if (hasImage && styleSelected) {
+        componentToUse = 'param_selector';
+      }
+
       setMessages(prev => [
         ...prev,
         {
           id: agentMsgId,
           role: 'model',
-          text: data.reply
+          text: data.reply,
+          component: componentToUse
         }
       ]);
 
@@ -436,6 +445,93 @@ export default function App() {
     });
   };
 
+  const handleRestart = () => {
+    setUploadedImage(null);
+    setSelectedStyleId(null);
+    setHasSelectedStyle(false);
+    setGeneratedImage(null);
+    setMessages([
+      {
+        id: 'welcome',
+        role: 'model',
+        text: '👋 您好！我是您的智能餐具商品场景设计师。我可以帮您定制高质感的餐具商品展示大片！\n\n让我们先从选择一个喜欢的预设背景风格开始：',
+        component: 'style_picker'
+      }
+    ]);
+  };
+
+  const handleConfirmParamsAndGenerate = async () => {
+    if (!uploadedImage) {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `no-img-${Date.now()}`,
+          role: 'model',
+          text: '⚠️ 请先上传餐具原图。您可以使用对话窗口中的卡片直接上传哦！'
+        }
+      ]);
+      return;
+    }
+
+    const userMsgId = `confirm-params-${Date.now()}`;
+    const loaderId = `gen-loader-${Date.now()}`;
+
+    setMessages(prev => [
+      ...prev,
+      {
+        id: userMsgId,
+        role: 'user',
+        text: `⚙️ 确认画面比例为 ${aspectRatio}，清晰度为 ${resolution.toUpperCase()}。开始生成！`
+      },
+      {
+        id: loaderId,
+        role: 'model',
+        text: '✨ 智能生成中... 正为您融合自然光影并重新绘制背景，请稍候。',
+        isGenerating: true
+      }
+    ]);
+
+    try {
+      const resultUrl = await executeGeneration(
+        uploadedImage,
+        selectedStyleId || 'elegant_blue',
+        aspectRatio,
+        resolution,
+        customPrompt
+      );
+
+      setGeneratedImage(resultUrl);
+
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== loaderId);
+        return [
+          ...filtered,
+          {
+            id: `result-${Date.now()}`,
+            role: 'model',
+            text: '🎉 您的餐具商品展示场景图已经完美生成啦！',
+            component: 'result_card',
+            generatedImageUrl: resultUrl
+          }
+        ];
+      });
+    } catch (genErr: any) {
+      console.error(genErr);
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== loaderId);
+        return [
+          ...filtered,
+          {
+            id: `error-${Date.now()}`,
+            role: 'model',
+            text: `❌ 生图失败：${genErr.message || '系统繁忙，请重试'}`,
+            isError: true
+          }
+        ];
+      });
+    }
+  };
+
   const handleStyleSelectInChat = (styleId: string) => {
     const selectedStyle = STYLES.find(s => s.id === styleId);
     if (!selectedStyle) return;
@@ -444,23 +540,39 @@ export default function App() {
     setHasSelectedStyle(true);
 
     const userMsgId = `user-style-${Date.now()}`;
-    const updatedMessages: Message[] = [
-      ...messages,
-      {
-        id: userMsgId,
-        role: 'user',
-        text: `🎨 选择了背景风格：${selectedStyle.name}`
-      }
-    ];
+    const agentMsgId = `agent-response-${Date.now()}`;
 
-    setMessages(updatedMessages);
-
-    triggerAgentResponse(updatedMessages, {
-      selectedStyleId: styleId,
-      aspectRatio,
-      resolution,
-      customPrompt
-    });
+    if (uploadedImage) {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: userMsgId,
+          role: 'user',
+          text: `🎨 选择了背景风格：${selectedStyle.name}`
+        },
+        {
+          id: agentMsgId,
+          role: 'model',
+          text: `背景风格已成功更换为“${selectedStyle.name}”！接下来，请确认您想要的画面比例与清晰度：`,
+          component: 'param_selector'
+        }
+      ]);
+    } else {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: userMsgId,
+          role: 'user',
+          text: `🎨 选择了背景风格：${selectedStyle.name}`
+        },
+        {
+          id: agentMsgId,
+          role: 'model',
+          text: `您已选择了“${selectedStyle.name}”作为背景风格！这是一个非常好的选择。现在请在下方上传您的餐具产品原图，我就可以为您生成场景图了！`,
+          component: 'upload_zone'
+        }
+      ]);
+    }
   };
 
   return (
@@ -633,10 +745,17 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-2">
                   {uploadedImage && (
-                    <span className="text-[10px] bg-[#FDF8EE] border border-[#F5EFE6] px-2 py-1 rounded-md text-[#D4A373] font-bold">
+                    <span className="text-[10px] bg-[#FDF8EE] border border-[#F5EFE6] px-2.5 py-1 rounded-md text-[#D4A373] font-bold">
                       📸 原图已载入
                     </span>
                   )}
+                  <button
+                    onClick={handleRestart}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#EBE6E0] bg-white hover:bg-[#FAF8F5] text-xs font-bold text-[#665B54] hover:text-[#4A3B32] transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>开始新对话</span>
+                  </button>
                 </div>
               </div>
 
@@ -698,8 +817,8 @@ export default function App() {
                         )}
 
 
-                        {/* Interactive Dynamic Upload Zone Component (conditional on style selection and being the latest model message, excluding style_picker/welcome message) */}
-                        {hasSelectedStyle && isModel && isLatestModel && msg.id !== 'welcome' && msg.component !== 'style_picker' && !uploadedImage && (
+                        {/* Interactive Dynamic Upload Zone Component (conditional on message component) */}
+                        {isModel && msg.component === 'upload_zone' && !uploadedImage && (
                           <div 
                             onClick={() => fileInputRef.current?.click()}
                             className="bg-white border-2 border-dashed border-[#D9C4A9] hover:border-[#4A3B32] hover:bg-[#FDFBF7] rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 shadow-sm flex flex-col items-center justify-center gap-2 group max-w-sm mt-2"
@@ -709,6 +828,66 @@ export default function App() {
                             </div>
                             <span className="text-xs font-bold text-[#4A3B32]">点击在此处上传餐具原图</span>
                             <span className="text-[10px] text-[#888]">支持 JPG / PNG / WEBP 格式图片</span>
+                          </div>
+                        )}
+
+                        {/* Parameter Selection Card Component */}
+                        {isModel && msg.component === 'param_selector' && (
+                          <div className="bg-white border border-[#EBE6E0] rounded-2xl p-4.5 space-y-4 shadow-sm max-w-sm w-full mt-2 text-left">
+                            {/* Aspect Ratio Section */}
+                            <div className="space-y-2">
+                              <span className="text-[10px] font-bold text-[#8A7969] uppercase tracking-wider block">画面比例 (Aspect Ratio)</span>
+                              <div className="grid grid-cols-5 gap-1.5">
+                                {RATIOS.map((ratio) => {
+                                  const isSelected = aspectRatio === ratio;
+                                  return (
+                                    <button
+                                      key={ratio}
+                                      onClick={() => setAspectRatio(ratio)}
+                                      className={`py-2 text-center rounded-xl text-xs font-bold transition-all border ${
+                                        isSelected
+                                          ? 'bg-[#4A3B32] text-white border-[#4A3B32]'
+                                          : 'bg-white text-[#665B54] border-[#EBE6E0] hover:border-[#D9C4A9] hover:bg-[#FAF8F5]'
+                                      }`}
+                                    >
+                                      {ratio}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Resolution Section */}
+                            <div className="space-y-2">
+                              <span className="text-[10px] font-bold text-[#8A7969] uppercase tracking-wider block">清晰度 (Resolution)</span>
+                              <div className="grid grid-cols-3 gap-1.5">
+                                {RESOLUTIONS.map((res) => {
+                                  const isSelected = resolution === res;
+                                  return (
+                                    <button
+                                      key={res}
+                                      onClick={() => setResolution(res)}
+                                      className={`py-2 text-center rounded-xl text-xs font-bold transition-all border ${
+                                        isSelected
+                                          ? 'bg-[#4A3B32] text-white border-[#4A3B32]'
+                                          : 'bg-white text-[#665B54] border-[#EBE6E0] hover:border-[#D9C4A9] hover:bg-[#FAF8F5]'
+                                      }`}
+                                    >
+                                      {res.toUpperCase()}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Confirm Button */}
+                            <button
+                              onClick={handleConfirmParamsAndGenerate}
+                              className="w-full bg-[#4A3B32] hover:bg-[#3B3029] text-white font-bold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-xs transform active:scale-[0.98] shadow-sm mt-1"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>确认参数并开始生成</span>
+                            </button>
                           </div>
                         )}
 
