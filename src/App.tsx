@@ -58,24 +58,25 @@ export default function App() {
   const [userId, setUserId] = useState<string>('test_user');
   const [toolId, setToolId] = useState<string>('test_tool');
   const [saasUrls, setSaasUrls] = useState<{verifyUrl?: string, consumeUrl?: string, uploadTokenUrl?: string, uploadCommitUrl?: string}>({});
+  const [isTerminated, setIsTerminated] = useState(false);
+
+  const fetchIntegral = async (uid: string, tid: string) => {
+    try {
+      const res = await fetch('/api/tool/launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uid, toolId: tid })
+      });
+      const data = await res.json();
+      if (data.success && data.data?.user) {
+        setIntegral(data.data.user.integral);
+      }
+    } catch (err) {
+      console.error('Fetch integral failed', err);
+    }
+  };
 
   useEffect(() => {
-    const fetchIntegral = async (uid: string, tid: string) => {
-      try {
-        const res = await fetch('/api/tool/launch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: uid, toolId: tid })
-        });
-        const data = await res.json();
-        if (data.success && data.data?.user) {
-          setIntegral(data.data.user.integral);
-        }
-      } catch (err) {
-        console.error('Fetch integral failed', err);
-      }
-    };
-
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'SAAS_INIT') {
         setUserId(event.data.userId);
@@ -96,7 +97,7 @@ export default function App() {
     fetchIntegral(userId, toolId);
 
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [userId, toolId]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -153,6 +154,10 @@ export default function App() {
     resLabel: string,
     promptAddon: string
   ): Promise<string> => {
+    if (integral !== null && integral <= 0) {
+      throw new Error('insufficient_limit');
+    }
+
     // 1. Verify
     const verifyRes = await fetch('/api/tool/verify', {
       method: 'POST',
@@ -161,7 +166,7 @@ export default function App() {
     });
     const verifyData = await verifyRes.json();
     if (!verifyData.success) {
-      throw new Error(verifyData.message || verifyData.error || '余额不足拒绝生图');
+      throw new Error('insufficient_limit');
     }
 
     // 2. Generate
@@ -261,8 +266,14 @@ export default function App() {
       setGeneratedImage(resultUrl);
     } catch (err: any) {
       const errorMsg = err.message || '';
-      if (errorMsg.includes('prepayment credits are depleted') || errorMsg.includes('429')) {
-        setError('API 额度已用尽。请在 Google AI Studio 中检查并配置您的账单与额度。');
+      if (
+        errorMsg === 'insufficient_limit' ||
+        errorMsg.includes('prepayment credits') ||
+        errorMsg.includes('429') ||
+        errorMsg.includes('余额不足')
+      ) {
+        setError('⚠️ 很抱歉，本次体验服务次数已达到上限，无法继续生成。');
+        setIsTerminated(true);
       } else {
         setError(errorMsg || '生成图片失败，请重试。');
       }
@@ -314,11 +325,18 @@ export default function App() {
       const hasImage = !!activeImage;
       const styleSelected = !!(data.updatedParams?.selectedStyleId || selectedStyleId);
 
+      const lastUserMessage = history[history.length - 1]?.text || '';
+      const mentionsRatioOrRes = /(比例|尺寸|分辨率|画质|清晰|超清|高清|宽屏|竖屏|1:1|3:4|4:3|16:9|9:16|1k|2k|4k)/i.test(lastUserMessage);
+
       let componentToUse: 'style_picker' | 'upload_zone' | 'param_selector' | 'result_card' | undefined = undefined;
       if (!hasImage && styleSelected) {
         componentToUse = 'upload_zone';
       } else if (hasImage && styleSelected) {
-        componentToUse = 'param_selector';
+        if (generatedImage && !mentionsRatioOrRes) {
+          componentToUse = undefined;
+        } else {
+          componentToUse = 'param_selector';
+        }
       }
 
       setMessages(prev => [
@@ -332,7 +350,12 @@ export default function App() {
       ]);
 
       // 3. Smart generation trigger
-      if (data.triggerGenerate) {
+      let shouldTriggerGen = data.triggerGenerate;
+      if (generatedImage && !mentionsRatioOrRes && (data.updatedParams?.selectedStyleId || data.updatedParams?.customPrompt !== undefined)) {
+        shouldTriggerGen = true;
+      }
+
+      if (shouldTriggerGen) {
         if (!activeImage) {
           setMessages(prev => [
             ...prev,
@@ -387,6 +410,7 @@ export default function App() {
           });
         } catch (genErr: any) {
           console.error(genErr);
+          const isIns = genErr.message === 'insufficient_limit' || genErr.message?.includes('余额不足') || genErr.message?.includes('credits') || genErr.message?.includes('prepayment');
           setMessages(prev => {
             const filtered = prev.filter(m => m.id !== loaderId);
             return [
@@ -394,11 +418,16 @@ export default function App() {
               {
                 id: `error-${Date.now()}`,
                 role: 'model',
-                text: `❌ 生图失败：${genErr.message || '系统繁忙，请重试'}`,
+                text: isIns
+                  ? '⚠️ 很抱歉，本次体验服务次数已达到上限。当前对话已自动结束，感谢您的使用！'
+                  : `❌ 生图失败：${genErr.message || '系统繁忙，请重试'}`,
                 isError: true
               }
             ];
           });
+          if (isIns) {
+            setIsTerminated(true);
+          }
         }
       }
     } catch (err: any) {
@@ -417,7 +446,7 @@ export default function App() {
     }
   };
 
-  const handleSendChatMessage = (textToSend?: string) => {
+  const handleSendChatMessage = async (textToSend?: string) => {
     const targetText = textToSend !== undefined ? textToSend : inputMessage;
     if (!targetText.trim()) return;
 
@@ -437,6 +466,43 @@ export default function App() {
 
     setMessages(updatedMessages);
 
+    // Verify limit before sending to agent
+    try {
+      if (integral !== null && integral <= 0) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `terminated-${Date.now()}`,
+            role: 'model',
+            text: '⚠️ 很抱歉，本次体验服务次数已达到上限。当前对话已自动结束，感谢您的使用！'
+          }
+        ]);
+        setIsTerminated(true);
+        return;
+      }
+
+      const verifyRes = await fetch('/api/tool/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, toolId })
+      });
+      const verifyData = await verifyRes.json();
+      if (!verifyData.success) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `terminated-${Date.now()}`,
+            role: 'model',
+            text: '⚠️ 很抱歉，本次体验服务次数已达到上限。当前对话已自动结束，感谢您的使用！'
+          }
+        ]);
+        setIsTerminated(true);
+        return;
+      }
+    } catch (err) {
+      console.error('Verify failed before chat message', err);
+    }
+
     triggerAgentResponse(updatedMessages, {
       selectedStyleId,
       aspectRatio,
@@ -450,6 +516,8 @@ export default function App() {
     setSelectedStyleId(null);
     setHasSelectedStyle(false);
     setGeneratedImage(null);
+    setIsTerminated(false);
+    fetchIntegral(userId, toolId);
     setMessages([
       {
         id: 'welcome',
@@ -517,6 +585,7 @@ export default function App() {
       });
     } catch (genErr: any) {
       console.error(genErr);
+      const isIns = genErr.message === 'insufficient_limit' || genErr.message?.includes('余额不足') || genErr.message?.includes('credits') || genErr.message?.includes('prepayment');
       setMessages(prev => {
         const filtered = prev.filter(m => m.id !== loaderId);
         return [
@@ -524,11 +593,16 @@ export default function App() {
           {
             id: `error-${Date.now()}`,
             role: 'model',
-            text: `❌ 生图失败：${genErr.message || '系统繁忙，请重试'}`,
+            text: isIns
+              ? '⚠️ 很抱歉，本次体验服务次数已达到上限。当前对话已自动结束，感谢您的使用！'
+              : `❌ 生图失败：${genErr.message || '系统繁忙，请重试'}`,
             isError: true
           }
         ];
       });
+      if (isIns) {
+        setIsTerminated(true);
+      }
     }
   };
 
@@ -543,20 +617,89 @@ export default function App() {
     const agentMsgId = `agent-response-${Date.now()}`;
 
     if (uploadedImage) {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: userMsgId,
-          role: 'user',
-          text: `🎨 选择了背景风格：${selectedStyle.name}`
-        },
-        {
-          id: agentMsgId,
-          role: 'model',
-          text: `背景风格已成功更换为“${selectedStyle.name}”！接下来，请确认您想要的画面比例与清晰度：`,
-          component: 'param_selector'
-        }
-      ]);
+      if (generatedImage) {
+        const loaderId = `gen-loader-${Date.now()}`;
+        setMessages(prev => [
+          ...prev,
+          {
+            id: userMsgId,
+            role: 'user',
+            text: `🎨 选择了背景风格：${selectedStyle.name}`
+          },
+          {
+            id: agentMsgId,
+            role: 'model',
+            text: `没问题！背景已为您更换为“${selectedStyle.name}”风格。正在按原参数重新生成图片，请稍候片刻！`
+          },
+          {
+            id: loaderId,
+            role: 'model',
+            text: '✨ 智能生成中... 正为您融合自然光影并重新绘制背景，请稍候。',
+            isGenerating: true
+          }
+        ]);
+
+        (async () => {
+          try {
+            const resultUrl = await executeGeneration(
+              uploadedImage,
+              styleId,
+              aspectRatio,
+              resolution,
+              customPrompt
+            );
+            setGeneratedImage(resultUrl);
+            setMessages(prev => {
+              const filtered = prev.filter(m => m.id !== loaderId);
+              return [
+                ...filtered,
+                {
+                  id: `result-${Date.now()}`,
+                  role: 'model',
+                  text: '🎉 您的餐具商品展示场景图已经完美生成啦！',
+                  component: 'result_card',
+                  generatedImageUrl: resultUrl
+                }
+              ];
+            });
+          } catch (genErr: any) {
+            console.error(genErr);
+            const isIns = genErr.message === 'insufficient_limit' || genErr.message?.includes('余额不足') || genErr.message?.includes('credits') || genErr.message?.includes('prepayment');
+            setMessages(prev => {
+              const filtered = prev.filter(m => m.id !== loaderId);
+              return [
+                ...filtered,
+                {
+                  id: `error-${Date.now()}`,
+                  role: 'model',
+                  text: isIns
+                    ? '⚠️ 很抱歉，本次体验服务次数已达到上限。当前对话已自动结束，感谢您的使用！'
+                    : `❌ 生图失败：${genErr.message || '系统繁忙，请重试'}`,
+                  isError: true
+                }
+              ];
+            });
+            if (isIns) {
+              setIsTerminated(true);
+            }
+          }
+        })();
+      } else {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: userMsgId,
+            role: 'user',
+            text: `🎨 选择了背景风格：${selectedStyle.name}`
+          },
+          {
+            id: agentMsgId,
+            role: 'model',
+            text: `背景风格已成功更换为“${selectedStyle.name}”！接下来，请确认您想要的画面比例与清晰度：`,
+            component: 'param_selector'
+          }
+        ]);
+      }
     } else {
       setMessages(prev => [
         ...prev,
@@ -843,11 +986,12 @@ export default function App() {
                                   return (
                                     <button
                                       key={ratio}
+                                      disabled={isTerminated}
                                       onClick={() => setAspectRatio(ratio)}
                                       className={`py-2 text-center rounded-xl text-xs font-bold transition-all border ${
                                         isSelected
-                                          ? 'bg-[#4A3B32] text-white border-[#4A3B32]'
-                                          : 'bg-white text-[#665B54] border-[#EBE6E0] hover:border-[#D9C4A9] hover:bg-[#FAF8F5]'
+                                          ? 'bg-[#4A3B32] text-white border-[#4A3B32] disabled:bg-[#4A3B32]/70'
+                                          : 'bg-white text-[#665B54] border-[#EBE6E0] hover:border-[#D9C4A9] hover:bg-[#FAF8F5] disabled:opacity-50'
                                       }`}
                                     >
                                       {ratio}
@@ -866,11 +1010,12 @@ export default function App() {
                                   return (
                                     <button
                                       key={res}
+                                      disabled={isTerminated}
                                       onClick={() => setResolution(res)}
                                       className={`py-2 text-center rounded-xl text-xs font-bold transition-all border ${
                                         isSelected
-                                          ? 'bg-[#4A3B32] text-white border-[#4A3B32]'
-                                          : 'bg-white text-[#665B54] border-[#EBE6E0] hover:border-[#D9C4A9] hover:bg-[#FAF8F5]'
+                                          ? 'bg-[#4A3B32] text-white border-[#4A3B32] disabled:bg-[#4A3B32]/70'
+                                          : 'bg-white text-[#665B54] border-[#EBE6E0] hover:border-[#D9C4A9] hover:bg-[#FAF8F5] disabled:opacity-50'
                                       }`}
                                     >
                                       {res.toUpperCase()}
@@ -883,10 +1028,11 @@ export default function App() {
                             {/* Confirm Button */}
                             <button
                               onClick={handleConfirmParamsAndGenerate}
-                              className="w-full bg-[#4A3B32] hover:bg-[#3B3029] text-white font-bold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-xs transform active:scale-[0.98] shadow-sm mt-1"
+                              disabled={isTerminated}
+                              className="w-full bg-[#4A3B32] hover:bg-[#3B3029] disabled:bg-[#A49A90] disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-xs transform active:scale-[0.98] shadow-sm mt-1"
                             >
                               <CheckCircle2 className="w-4 h-4" />
-                              <span>确认参数并开始生成</span>
+                              <span>{isTerminated ? "无法生成（体验次数已达限制）" : "确认参数并开始生成"}</span>
                             </button>
                           </div>
                         )}
@@ -975,51 +1121,24 @@ export default function App() {
 
               {/* Chat bottom input */}
               <div className="p-4 border-t border-[#EBE6E0] bg-white space-y-2">
-                {/* Quick Suggestions / Actions */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full custom-scrollbar">
-                  {uploadedImage && (
-                    <>
-                      <button
-                        onClick={() => handleSendChatMessage('比例换成 16:9')}
-                        className="text-[10px] shrink-0 bg-[#F5F2EC] hover:bg-[#EAE4D9] text-[#4A3B32] px-2.5 py-1 rounded-full transition-colors font-medium"
-                      >
-                        📐 比例换成 16:9
-                      </button>
-                      <button
-                        onClick={() => handleSendChatMessage('比例改成 3:4')}
-                        className="text-[10px] shrink-0 bg-[#F5F2EC] hover:bg-[#EAE4D9] text-[#4A3B32] px-2.5 py-1 rounded-full transition-colors font-medium"
-                      >
-                        📐 比例改成 3:4
-                      </button>
-                      <button
-                        onClick={() => handleSendChatMessage('清晰度切换为 4k 超清')}
-                        className="text-[10px] shrink-0 bg-[#F5F2EC] hover:bg-[#EAE4D9] text-[#4A3B32] px-2.5 py-1 rounded-full transition-colors font-medium"
-                      >
-                        {"🌟 Clarity -> 4K 超清"}
-                      </button>
-                      <button
-                        onClick={() => handleSendChatMessage('背景换成复古厨房风格')}
-                        className="text-[10px] shrink-0 bg-[#F5F2EC] hover:bg-[#EAE4D9] text-[#4A3B32] px-2.5 py-1 rounded-full transition-colors font-medium"
-                      >
-                        🍳 换成复古厨房背景
-                      </button>
-                    </>
-                  )}
-                </div>
-
                 {/* Input box */}
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
-                    placeholder="和 AI 艺术家说说你的需求（例如：“把背景换成暖阳餐桌并加几朵白菊花”）"
-                    className="flex-1 text-xs px-4 py-3 rounded-xl bg-[#FDF8EE]/40 border border-[#EBE6E0] text-[#4A3B32] placeholder-[#A49A90] focus:outline-none focus:border-[#D9C4A9] focus:ring-1 focus:ring-[#D9C4A9]"
+                    onKeyDown={(e) => e.key === 'Enter' && !isTerminated && handleSendChatMessage()}
+                    disabled={isTerminated}
+                    placeholder={isTerminated ? "⚠️ 本次体验服务次数已达到上限" : "和 AI 艺术家说说你的需求（例如：“把背景换成暖阳餐桌并加几朵白菊花”）"}
+                    className={`flex-1 text-xs px-4 py-3 rounded-xl border text-[#4A3B32] placeholder-[#A49A90] focus:outline-none focus:ring-1 ${
+                      isTerminated
+                        ? 'bg-gray-100 border-gray-200 cursor-not-allowed text-gray-400 placeholder-gray-400'
+                        : 'bg-[#FDF8EE]/40 border-[#EBE6E0] focus:border-[#D9C4A9] focus:ring-[#D9C4A9]'
+                    }`}
                   />
                   <button
                     onClick={() => handleSendChatMessage()}
-                    disabled={!inputMessage.trim()}
+                    disabled={isTerminated || !inputMessage.trim()}
                     className="p-3 bg-[#4A3B32] hover:bg-[#3B3029] disabled:bg-[#A49A90] disabled:cursor-not-allowed text-white rounded-xl transition-all shadow-sm shrink-0 flex items-center justify-center w-12 h-12"
                   >
                     <Send className="w-4 h-4" />
@@ -1167,7 +1286,7 @@ export default function App() {
 
                 <button
                   onClick={handleGenerate}
-                  disabled={!uploadedImage || isGenerating}
+                  disabled={!uploadedImage || isGenerating || isTerminated}
                   className="w-full mt-3 bg-[#4A3B32] hover:bg-[#3B3029] disabled:bg-[#A49A90] disabled:cursor-not-allowed text-[#FDFBF7] font-bold py-3 rounded-xl shadow-md shadow-[#4A3B32]/10 transition-all duration-200 flex items-center justify-center gap-2 transform active:scale-[0.98] shrink-0"
                 >
                   {isGenerating ? (
@@ -1177,7 +1296,7 @@ export default function App() {
                     </>
                   ) : (
                     <span className="flex items-center gap-2 text-sm">
-                      <Sparkles className="w-4 h-4" /> 生成商品场景图
+                      <Sparkles className="w-4 h-4" /> {isTerminated ? "本次体验服务次数已达到上限" : "生成商品场景图"}
                     </span>
                   )}
                 </button>
