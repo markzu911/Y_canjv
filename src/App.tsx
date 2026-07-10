@@ -32,7 +32,7 @@ export default function App() {
     {
       id: 'welcome',
       role: 'model',
-      text: '👋 您好！我是您的智能餐具商品场景设计师。我可以帮您定制高质感的餐具商品展示大片！\n\n您可以直接输入您想要的风格，比如 **“换成暖阳餐桌背景”** 或 **“比例改成16:9”**。\n\n让我们先从选择一个喜欢的预设背景风格开始，或者您直接上传餐具产品原图也可以。',
+      text: '👋 您好！我是您的智能餐具商品场景设计师。我可以帮您定制高质感的餐具商品展示大片！\n\n您可以直接输入您想要的风格，比如 “换成暖阳餐桌背景” 或 “比例改成16:9”。\n\n让我们先从选择一个喜欢的预设背景风格开始，或者您直接上传餐具产品原图也可以。',
       component: 'style_picker'
     }
   ]);
@@ -43,7 +43,8 @@ export default function App() {
   const agentImageInputRef = useRef<HTMLInputElement>(null);
 
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [selectedStyleId, setSelectedStyleId] = useState(STYLES[0].id);
+  const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
+  const [hasSelectedStyle, setHasSelectedStyle] = useState(false);
   const [aspectRatio, setAspectRatio] = useState('1:1');
   const [resolution, setResolution] = useState('1k');
   const [customPrompt, setCustomPrompt] = useState('');
@@ -440,6 +441,7 @@ export default function App() {
     if (!selectedStyle) return;
 
     setSelectedStyleId(styleId);
+    setHasSelectedStyle(true);
 
     const userMsgId = `user-style-${Date.now()}`;
     const updatedMessages: Message[] = [
@@ -648,7 +650,7 @@ export default function App() {
                   return (
                     <div 
                       key={msg.id}
-                      className={`flex gap-3 max-w-[85%] ${isModel ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}
+                      className={`flex gap-3 max-w-[85%] ${isModel ? 'mr-auto' : 'ml-auto flex-row-reverse max-w-[60%]'}`}
                     >
                       <div className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-xs font-bold shadow-sm ${
                         isModel ? 'bg-[#EBDDC9] text-[#4A3B32]' : 'bg-[#4A3B32] text-white'
@@ -656,9 +658,9 @@ export default function App() {
                         {isModel ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
                       </div>
 
-                      <div className="space-y-2.5 flex-1">
+                      <div className={`space-y-2.5 flex-1 ${!isModel ? 'text-right' : ''}`}>
                         {/* Bubble Text */}
-                        <div className={`rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-sm ${
+                        <div className={`rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-sm inline-block ${
                           isModel 
                             ? msg.isError 
                               ? 'bg-red-50 text-red-700 border border-red-100'
@@ -670,44 +672,29 @@ export default function App() {
 
                         {/* Interactive Style Picker Component */}
                         {isModel && msg.component === 'style_picker' && (
-                          <div className="space-y-3">
-                            <div className="bg-white/50 border border-[#F0EBE4] rounded-2xl p-3.5 space-y-3 shadow-sm">
-                              <p className="text-[10px] font-bold text-[#8A7969] uppercase tracking-wider">直接点击选择喜欢的场景风格：</p>
-                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                {STYLES.map(style => (
-                                  <button
-                                    key={style.id}
-                                    onClick={() => handleStyleSelectInChat(style.id)}
-                                    className={`p-2.5 rounded-xl border text-left transition-all hover:bg-[#FDF8EE]/50 ${
-                                      selectedStyleId === style.id
-                                        ? 'border-[#D9C4A9] bg-[#FDF8EE] text-[#4A3B32]'
-                                        : 'border-[#EBE6E0] bg-white text-[#665B54]'
-                                    }`}
-                                  >
-                                    <p className="text-[11px] font-bold truncate">{style.name}</p>
-                                    <p className="text-[9px] text-[#999] truncate mt-0.5">{style.desc}</p>
-                                  </button>
-                                ))}
-                              </div>
+                          <div className="bg-white/50 border border-[#F0EBE4] rounded-2xl p-3.5 space-y-3 shadow-sm">
+                            <p className="text-[10px] font-bold text-[#8A7969] uppercase tracking-wider">直接点击选择喜欢的场景风格：</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              {STYLES.map(style => (
+                                <button
+                                  key={style.id}
+                                  onClick={() => handleStyleSelectInChat(style.id)}
+                                  className={`p-2.5 rounded-xl border text-left transition-all hover:bg-[#FDF8EE]/50 ${
+                                    selectedStyleId === style.id
+                                      ? 'border-[#D9C4A9] bg-[#FDF8EE] text-[#4A3B32]'
+                                      : 'border-[#EBE6E0] bg-white text-[#665B54]'
+                                  }`}
+                                >
+                                  <p className="text-[11px] font-bold truncate">{style.name}</p>
+                                  <p className="text-[9px] text-[#999] truncate mt-0.5">{style.desc}</p>
+                                </button>
+                              ))}
                             </div>
-
-                            {!uploadedImage && (
-                              <div 
-                                onClick={() => fileInputRef.current?.click()}
-                                className="bg-white border-2 border-dashed border-[#D9C4A9] hover:border-[#4A3B32] hover:bg-[#FDFBF7] rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 shadow-sm flex flex-col items-center justify-center gap-2 group max-w-sm"
-                              >
-                                <div className="w-10 h-10 bg-[#FDF8EE] rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                                  <Upload className="w-5 h-5 text-[#D4A373]" />
-                                </div>
-                                <span className="text-xs font-bold text-[#4A3B32]">直接在此处上传餐具产品原图</span>
-                                <span className="text-[10px] text-[#888]">支持 JPG / PNG / WEBP 格式餐具图片</span>
-                              </div>
-                            )}
                           </div>
                         )}
 
-                        {/* Interactive Dynamic Upload Zone Component */}
-                        {isModel && msg.component !== 'style_picker' && (msg.component === 'upload_zone' || msg.text.includes('上传') || msg.text.includes('原图')) && !uploadedImage && (
+                        {/* Interactive Dynamic Upload Zone Component (conditional on style selection) */}
+                        {hasSelectedStyle && isModel && (msg.component === 'upload_zone' || msg.text.includes('上传') || msg.text.includes('原图')) && !uploadedImage && (
                           <div 
                             onClick={() => fileInputRef.current?.click()}
                             className="bg-white border-2 border-dashed border-[#D9C4A9] hover:border-[#4A3B32] hover:bg-[#FDFBF7] rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 shadow-sm flex flex-col items-center justify-center gap-2 group max-w-sm mt-2"
