@@ -141,7 +141,46 @@ export default function App() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        processImageUpload(reader.result as string);
+        const base64 = reader.result as string;
+        
+        // 前端预处理：压缩图片以避免 413 错误并支持多种格式
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxLongSide = 1600;
+
+          // 等比例缩放 (最大长边 1600px)
+          if (width > height) {
+            if (width > maxLongSide) {
+              height *= maxLongSide / width;
+              width = maxLongSide;
+            }
+          } else {
+            if (height > maxLongSide) {
+              width *= maxLongSide / height;
+              height = maxLongSide;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            // 绘制图片到 canvas
+            ctx.drawImage(img, 0, 0, width, height);
+            // 转换为 image/jpeg 并设置 0.85 质量以大幅缩小体积
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+            processImageUpload(compressedBase64);
+          } else {
+            processImageUpload(base64); // 降级处理
+          }
+        };
+        img.onerror = () => {
+          processImageUpload(base64); // 降级处理
+        };
+        img.src = base64;
       };
       reader.readAsDataURL(file);
     }
@@ -973,7 +1012,7 @@ export default function App() {
                               <Upload className="w-5 h-5 text-[#D4A373]" />
                             </div>
                             <span className="text-xs font-bold text-[#4A3B32]">点击在此处上传餐具原图</span>
-                            <span className="text-[10px] text-[#888]">支持 JPG / PNG / WEBP 格式图片</span>
+                            <span className="text-[10px] text-[#888]">支持常见图片格式（如 JPG, PNG, WebP），最大支持 20MB（通过前端压缩上传）</span>
                           </div>
                         )}
 
@@ -1385,7 +1424,7 @@ export default function App() {
                       <div className="text-center mb-8">
                         <p className="text-[#4A3B32] font-bold text-lg mb-2">等待生成您的专属场景图</p>
                         <p className="text-xs text-[#888]">
-                          上传餐具图片并选择背景风格<br/>即可生成高质感的商品展示图
+                          支持常见图片格式（如 JPG, PNG, WebP），最大支持 20MB（通过前端压缩上传）<br/>上传后即可生成高质感的商品展示图
                         </p>
                       </div>
                       
