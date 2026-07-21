@@ -1,6 +1,6 @@
 {
-  "name": "AI餐具商品图",
-  "description": "One-click generation of tableware e-commerce images with custom backgrounds.",
+  "name": "餐具产品图",
+  "description": "这款餐具产品图应用，可快速生成高质量餐具产品图，支持替换产品、多风格产品图，让你的商品展示专业又吸引眼球。",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

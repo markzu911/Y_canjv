@@ -168,11 +168,12 @@ Current system state parameters before user's message:
 - original image uploaded: ${hasImage ? "Yes" : "No"}
 
 Rules for updating params:
-1. ONLY update parameters that the user explicitly wants to change, either by naming them directly (e.g. "把背景换成暖阳餐桌", "比例改成16:9", "超清") or by describing an addition/modification. Do not reset or change other parameters if the user hasn't asked.
-2. If the user specifies any addition or details (e.g. "加几朵白色的雏菊", "加一些高端的金色刀叉"), write/append this into the "customPrompt" field. Keep existing customPrompt elements if they are still relevant, or refine it nicely.
-3. Decide if we should trigger image generation ("triggerGenerate"):
-   - Set "triggerGenerate" to true ONLY if they have already uploaded an original image (hasImage is true) AND they either ask to generate (e.g. "开始生成", "生图吧", "渲染一下") OR they just changed a key parameter (like style, aspectRatio, customPrompt) making it natural to immediately trigger a regeneration to show the result.
-   - If hasImage is false, always set "triggerGenerate" to false, and in your reply kindly remind them that they need to upload an image first so we can generate!
+1. ONLY update parameters that the user explicitly wants to change.
+2. If the user describes a scene, mood, or background that doesn't exactly match one of the predefined "Styles", you MUST put that description into the "customPrompt" field. For example, if they say "放在海滩上", set customPrompt to "on a sunny beach with white sand".
+3. If the user specifies any addition or details (e.g. "加几朵白色的雏菊"), write/append this into the "customPrompt" field.
+4. Decide if we should trigger image generation ("triggerGenerate"):
+   - Set "triggerGenerate" to true if the user has already uploaded an original image (hasImage is true) AND they either ask to generate OR they described a specific visual change (style, customPrompt, or addition) that represents their "real need". 
+   - If hasImage is false, always set "triggerGenerate" to false, and remind them to upload an image first.
 
 You must output a valid JSON conforming exactly to the response schema. Keep the 'reply' friendly, concise, natural, and entirely in professional, helpful Chinese. Don't be dry.`;
 

@@ -328,11 +328,20 @@ export default function App() {
       const lastUserMessage = history[history.length - 1]?.text || '';
       const mentionsRatioOrRes = /(比例|尺寸|分辨率|画质|清晰|超清|高清|宽屏|竖屏|1:1|3:4|4:3|16:9|9:16|1k|2k|4k)/i.test(lastUserMessage);
 
+      // 3. Smart generation trigger
+      let shouldTriggerGen = data.triggerGenerate;
+      if (generatedImage && !mentionsRatioOrRes && (data.updatedParams?.selectedStyleId || data.updatedParams?.customPrompt !== undefined)) {
+        shouldTriggerGen = true;
+      }
+
       let componentToUse: 'style_picker' | 'upload_zone' | 'param_selector' | 'result_card' | undefined = undefined;
       if (!hasImage && styleSelected) {
         componentToUse = 'upload_zone';
       } else if (hasImage && styleSelected) {
-        if (generatedImage && !mentionsRatioOrRes) {
+        // If we are about to trigger generation, don't show the parameter selector
+        if (shouldTriggerGen) {
+          componentToUse = undefined;
+        } else if (generatedImage && !mentionsRatioOrRes) {
           componentToUse = undefined;
         } else {
           componentToUse = 'param_selector';
@@ -348,12 +357,6 @@ export default function App() {
           component: componentToUse
         }
       ]);
-
-      // 3. Smart generation trigger
-      let shouldTriggerGen = data.triggerGenerate;
-      if (generatedImage && !mentionsRatioOrRes && (data.updatedParams?.selectedStyleId || data.updatedParams?.customPrompt !== undefined)) {
-        shouldTriggerGen = true;
-      }
 
       if (shouldTriggerGen) {
         if (!activeImage) {
@@ -727,8 +730,8 @@ export default function App() {
               <Sparkles className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-[#4A3B32]">餐具商品场景生成器</h1>
-              <p className="text-xs text-[#888] mt-0.5">上传餐具图片，选择喜欢的背景风格，AI 为您生成高质感的商品场景图</p>
+              <h1 className="text-xl font-bold tracking-tight text-[#4A3B32]">餐具产品图</h1>
+              <p className="text-xs text-[#888] mt-0.5">这款餐具产品图应用，可快速生成高质量餐具产品图，支持替换产品、多风格产品图，让你的商品展示专业又吸引眼球。</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
